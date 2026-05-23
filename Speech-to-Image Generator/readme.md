@@ -1,6 +1,6 @@
 # 🎨 Speech/Text to Image Converter
 
-This Streamlit application allows users to convert spoken words or text input into images using the Stable Diffusion model. The app leverages speech recognition to capture user input and generates images based on the provided description.
+This Streamlit application allows users to convert spoken words or text input into images using the Stable Diffusion model. The app leverages offline speech recognition (PocketSphinx) to capture user input and generates images based on the provided description.
 
 ## 📖 Table of Contents
 - [Features](#features)
@@ -11,7 +11,7 @@ This Streamlit application allows users to convert spoken words or text input in
 
 ## Features
 
-- **Speech Recognition**: Uses the microphone to capture spoken input and convert it into text.
+- **Speech Recognition (Offline)**: Uses the microphone + PocketSphinx to capture spoken input and convert it into text without external APIs.
 - **Text Input**: Users can also type in the text if they prefer not to use speech.
 - **Image Generation**: The app uses the Stable Diffusion model to generate images based on the text or speech input.
 
@@ -22,7 +22,8 @@ The application requires the following Python libraries:
 - `PIL`
 - `torch`
 - `diffusers`
-- `speech_recognition`
+- `SpeechRecognition`
+- `pocketsphinx`
 
 See the `requirements.txt` file for more details.
 
@@ -63,3 +64,8 @@ See the `requirements.txt` file for more details.
 This application uses the following:
 - [Stable Diffusion Pipeline](https://github.com/huggingface/diffusers) for image generation.
 - [SpeechRecognition](https://pypi.org/project/SpeechRecognition/) library for capturing and processing speech input.
+
+
+## Contribution Note
+
+This module is kept attribution-neutral inside the app UI and comments, and is aligned with GSSoC participant contribution workflows.

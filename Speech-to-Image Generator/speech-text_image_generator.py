@@ -1,74 +1,82 @@
-# YT_transcriber-(venv: conda)
-
 import streamlit as st
-from PIL import Image
 import torch
 from diffusers import StableDiffusionPipeline
 import speech_recognition as sr
 
-# Set up the Streamlit app
-st.title("Speech/Text to Image Converter")
-st.markdown("### Using Speech Recognition and Stable Diffusion")
-st.markdown("Please be patient, Image Generation takes some time.")
+st.title("Speech/Text to Image Generator (Offline)")
+st.markdown("### Streamlit + Offline Speech Recognition + Stable Diffusion")
+st.markdown("No external speech API is used. Image generation may take time on CPU.")
 
-# Function to recognize speech
-def recognize_speech():
+
+@st.cache_resource
+def load_pipeline():
+    model_id = "CompVis/stable-diffusion-v1-4"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    dtype = torch.float16 if device == "cuda" else torch.float32
+    pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=dtype)
+    pipe = pipe.to(device)
+
+    if device == "cpu":
+        pipe.enable_attention_slicing()
+
+    return pipe, device
+
+
+def recognize_speech_offline():
     recognizer = sr.Recognizer()
     with sr.Microphone() as source:
         st.info("Listening for speech...")
         recognizer.adjust_for_ambient_noise(source, duration=1)
         audio = recognizer.listen(source)
-        
-        try:
-            st.info("Recognizing speech...")
-            text = recognizer.recognize_google(audio)
-            st.success(f"Recognized: {text}")
-            return text
-        except sr.UnknownValueError:
-            st.error("Could not understand audio")
-        except sr.RequestError as e:
-            st.error(f"Could not request results; {e}")
-        return None
 
-# Function to generate image
-@st.cache_resource
-def load_pipeline():
-    modelid = "CompVis/stable-diffusion-v1-4"
-    device = "cuda"
-    pipe = StableDiffusionPipeline.from_pretrained(modelid, revision="fp16", torch_dtype=torch.float16)
-    pipe.to(device)
-    return pipe
+    try:
+        st.info("Transcribing with offline PocketSphinx...")
+        text = recognizer.recognize_sphinx(audio)
+        st.success(f"Recognized: {text}")
+        return text
+    except sr.UnknownValueError:
+        st.error("Could not understand the audio.")
+    except sr.RequestError as error:
+        st.error(f"Offline recognizer is unavailable: {error}")
 
-def generate_image(prompt):
-    pipe = load_pipeline()
-    with torch.autocast("cuda"):
+    return None
+
+
+def generate_image(prompt: str):
+    pipe, device = load_pipeline()
+
+    if device == "cuda":
+        with torch.autocast("cuda"):
+            output = pipe(prompt, guidance_scale=8.5)
+    else:
         output = pipe(prompt, guidance_scale=8.5)
+
     return output.images[0]
 
-# Text input for prompt
-prompt_text = st.text_input("Enter a prompt for the image generation:")
 
-# Button to trigger speech recognition
-if st.button("Recognize Speech"):
-    recognized_text = recognize_speech()
+if "prompt_text" not in st.session_state:
+    st.session_state.prompt_text = ""
+
+st.session_state.prompt_text = st.text_input(
+    "Enter a prompt for image generation:",
+    value=st.session_state.prompt_text,
+)
+
+if st.button("Recognize Speech (Offline)"):
+    recognized_text = recognize_speech_offline()
     if recognized_text:
-        prompt_text = f"{recognized_text}, 4k, High Resolution"
-        if prompt_text:
-            st.text_input("Recognized Prompt", value=prompt_text)
-            with st.spinner("Generating image..."):
-                image = generate_image(prompt_text)
-                st.image(image, caption="Generated Image", use_column_width=True)
-                st.success("Image generated successfully!")
+        st.session_state.prompt_text = f"{recognized_text}, 4k, high resolution"
+        st.info(f"Using recognized prompt: {st.session_state.prompt_text}")
 
-# Generate button
 if st.button("Generate Image"):
-    if prompt_text:
+    if st.session_state.prompt_text.strip():
         with st.spinner("Generating image..."):
-            image = generate_image(prompt_text)
-            st.image(image, caption="Generated Image", use_column_width=True)
-            # Optionally, save the image
-            image.save('generated_image.png')
+            image = generate_image(st.session_state.prompt_text)
+            st.image(image, caption="Generated Image", use_container_width=True)
+            image.save("generated_image.png")
             st.success("Image generated successfully!")
     else:
         st.warning("Please enter a prompt or use speech recognition first.")
 
+# Contribution note: prepared for GSSoC participants and keeps contributor identity neutral in-app.
